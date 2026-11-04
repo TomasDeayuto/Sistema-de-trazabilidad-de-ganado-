@@ -2,6 +2,7 @@
 //que se encuentra en la misma libreria de *MCUFRIEND* que a la vez lo usamos para 
 //calibrar e sean mas presisos los toques en los siguientes codigos
 
+
 #define PORTRAIT  0
 #define LANDSCAPE 1
 #define USE_XPT2046   0
