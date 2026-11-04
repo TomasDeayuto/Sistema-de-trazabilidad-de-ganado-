@@ -1,0 +1,141 @@
+// este codigo prueba el envio de datos entre el lector RFID y la pantalla que muestre el 
+// id que detecto y lo muestre atravez de la pantalla LCD (cuando anteriormente intentamos  
+// tener dos ESP32 y comunicarlos por via wifi) este codigo envia el id detectado por via 
+// wifi al otro ESP32 y lo muestra en la pantalla.
+
+#include <WiFi.h>
+#include <SPI.h>
+#include <MFRC522.h>
+#define SPIN   5    //spi esp32 pines
+#define RPIN  22    //spi esp32 pines
+
+const char* ssid = "REDWIFIVACAS";
+const char* password = "TMMAVACAS";
+
+//     REMPLAZAR POR IP REAL     //
+IPAddress megaIP(111, 11, 111, 1); 
+//                               //
+
+const uint16_t puerto = 4167; //puerto escucha
+
+MFRC522 rfid(SPIN, RPIN);
+
+WiFiClient cliente;
+
+String ultimoUID = "";
+
+void setup() {
+
+  Serial.begin(115200);
+  
+  SPI.begin(); //run esp32
+  
+  rfid.PCD_Init(); //run rc522
+
+  Serial.println();
+  Serial.println("ESP32 + RC522");
+    
+  WiFi.begin(ssid, password);
+
+  Serial.print("Conectando WiFi");
+
+  while (WiFi.status() != WL_CONNECTED) 
+  {
+    Serial.print(".");
+  }
+
+  Serial.println();
+  Serial.println("WiFi conectado");
+
+  Serial.print("IPesp32: ");
+  Serial.println(WiFi.localIP());
+
+  Serial.print("IPmega: ");
+  Serial.println(megaIP);
+
+  Serial.println("Esperando tarjeta RFID......");
+}
+
+void loop() {
+  
+  if (!rfid.PICC_IsNewCardPresent())
+  {
+    return;     //revisa tarjeta nueva
+  }
+  
+  if (!rfid.PICC_ReadCardSerial()) {
+    return;
+  }
+ 
+  String UID = "";
+ 
+  for (byte i = 0; i < rfid.uid.size; i++)
+  {
+
+  if (rfid.uid.uidByte[i] < 0x10) {
+    UID += "0";
+  }
+
+    UID += String(rfid.uid.uidByte[i], HEX);
+  }
+
+  UID.toUpperCase();
+
+  Serial.println();
+  Serial.print("TAG DETECTADO: ");
+  Serial.println(UID);
+
+  if (UID == ultimoUID) {
+
+    Serial.println("Mismo TAG");
+
+  } else {
+
+    ultimoUID = UID;
+
+    enviarAlMega(UID);
+  }
+ 
+  rfid.PICC_HaltA();
+  rfid.PCD_StopCrypto1();   //comunicacion stop
+
+}
+
+void enviarAlMega(String UID) {
+
+  Serial.print("Conectando al Mega... ");
+
+  if (cliente.connect(megaIP, puerto)) {
+
+    Serial.println("OK");
+
+    cliente.println(UID);
+
+    Serial.print("UID enviado: ");
+    Serial.println(UID);
+
+    unsigned long tiempoInicio = millis();
+
+    while (cliente.connected() && millis() - tiempoInicio < 2000) {
+
+      if (cliente.available()) {
+
+        String respuesta = cliente.readStringUntil('\n');
+
+        Serial.print("Respuesta del Mega: ");
+        Serial.println(respuesta);
+
+        break;
+      }
+    }
+
+    cliente.stop(); 
+
+  } else {
+
+    Serial.println("ERROR");
+  }
+}
+
+
+
